@@ -8,8 +8,6 @@ dataset = load_dataset("google/wmt24pp", "en-es_MX", split="train")
 # Seteamos la API de GEMINI
 client = load_client()
 
-client = genai.Client()
-
 def obtener_listas_oraciones_es(dataset):
     oraciones_es = []
     for data in dataset:
@@ -18,7 +16,7 @@ def obtener_listas_oraciones_es(dataset):
     return oraciones_es
 
 oraciones_es = obtener_listas_oraciones_es(dataset)
-oraciones_es_lf = genai_samples(oraciones_es, client)
+oraciones_es, oraciones_es_lf = genai_samples(oraciones_es, client)
 
 # guardamos en un archivo de texto
 save_samples(oraciones_es, oraciones_es_lf, "data/es_MX-es_LF_small.txt")

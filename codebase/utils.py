@@ -5,31 +5,85 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+import re
+
+def preprocess_text(text):
+    """Preprocesa el texto para limpieza básica"""
+    # Limpiar pero mantener puntuación básica
+    text = text.strip()
+    # Convertir a minúsculas
+    text = text.lower()
+    # Remover puntuación excesiva pero mantener puntos y comas
+    text = re.sub(r'[^\w\sáéíóúüñ.,!¡?¿\']', '', text)
+    # Remover espacios extra
+    text = ' '.join(text.split())
+    return text
+
+
 def load_client():
     # Evito llamar al cliente varias veces
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     return client
 
-def genai_samples(samples: list[str], client: genai.Client) -> list[str]:
+
+def genai_samples(samples: list[str], client: genai.Client):
     import time
     t0 = time.time()
     responses = []
-    for sample in samples:
-        response_es_lf = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents='''
+    processed_samples = []
+    skipped_count = 0
+    
+    for _sample in samples:
+        _sample = preprocess_text(_sample)
+        success = False
+        
+        # 3 intentos por muestra
+        for attempt in range(3):
+            try:
+                response_es_lf = client.models.generate_content(
+                    model="gemini-2.5-flash-lite",
+                    contents='''
 Translate to natural, hilarious and explicit lunfardo argentino, no waffle or other dialogue, same length:
 "{}"
-            '''.format(sample),
-            config=types.GenerateContentConfig(
-            thinking_config=types.ThinkingConfig(thinking_budget=512)
-            )
-        )
-        responses.append(response_es_lf.text)
+                    '''.format(_sample),
+                    config=types.GenerateContentConfig(
+                        thinking_config=types.ThinkingConfig(thinking_budget=512)
+                    )
+                )
+                
+                # Check if we got valid text
+                if response_es_lf.text is not None:
+                    res = preprocess_text(response_es_lf.text)
+                    responses.append(res)
+                    processed_samples.append(_sample)
+                    success = True
+                    break
+                else:
+                    print(f"\nAttempt {attempt + 1}/3: Gemini returned None for sample (length: {len(_sample)})")
+                    if attempt < 2:  # Don't sleep on the last attempt
+                        time.sleep(1)  # Brief pause before retry
+                        
+            except Exception as e:
+                print(f"\nAttempt {attempt + 1}/3: Error occurred: {e}")
+                if attempt < 2:  # Don't sleep on the last attempt
+                    time.sleep(1)
+        
+        # If all 3 attempts failed, skip this sample
+        if not success:
+            print(f"\nSkipping sample after 3 failed attempts: '{_sample[:50]}...'")
+            skipped_count += 1
 
-        # Progreso en la consola
-        print(f"Processed {len(responses)}/{len(samples)} samples. Time elapsed: {time.time() - t0:.2f} seconds", end='\r')
-    return responses
+        # Progress in console
+        total_processed = len(responses)
+        total_samples = len(samples)
+        elapsed_time = (time.time() - t0) / 60
+        print(f"Processed {total_processed}/{total_samples} samples (skipped: {skipped_count}). Time elapsed: {elapsed_time:.2f} minutes", end='\r')
+    
+    # Final summary
+    elapsed_time = (time.time() - t0) / 60
+    print(f"\nCompleted! Processed {len(responses)}/{len(samples)} samples (skipped: {skipped_count}). Total time: {elapsed_time:.2f} minutes")
+    
+    return processed_samples, responses
 
 
 def save_samples(oraciones_es, oraciones_es_lf, filename):
