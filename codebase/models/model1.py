@@ -11,8 +11,6 @@ class model1(nn.Module):
         '''
         modelo naive basado en BERT + capas fully connected de referencia
         '''
-
-
         super().__init__()
         self.name = name
         self.BERT = BertModel.from_pretrained("bert-base-multilingual-uncased").eval()

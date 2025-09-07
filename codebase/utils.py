@@ -32,7 +32,7 @@ def genai_samples(samples: list[str], client: genai.Client):
     responses = []
     processed_samples = []
     skipped_count = 0
-    
+    query = os.getenv("QUERY")
     for _sample in samples:
         _sample = preprocess_text(_sample)
         success = False
@@ -43,9 +43,9 @@ def genai_samples(samples: list[str], client: genai.Client):
                 response_es_lf = client.models.generate_content(
                     model="gemini-2.5-flash-lite",
                     contents='''
-Translate to natural, hilarious and explicit lunfardo argentino, no waffle or other dialogue, same length:
+{}:
 "{}"
-                    '''.format(_sample),
+                    '''.format(query, _sample),
                     config=types.GenerateContentConfig(
                         thinking_config=types.ThinkingConfig(thinking_budget=512)
                     )
