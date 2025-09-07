@@ -41,5 +41,15 @@ class model1(nn.Module):
         input = input[:, :new_input_length]
         target = target[:, :(512 - new_input_length)]
 
-        return None
-    
+        loss = torch.tensor(0, requires_grad=True).to(input.device)
+
+        sep_token_id = 102
+        pad_token_id = 0
+
+        for i in range(target.shape[1]):
+            # deberian terminar en sep token y luego pad tokens.......x
+            input_ids = torch.cat((input, target[:, :i]), dim=1)
+            logits = self.forward(input_ids)
+            loss += F.cross_entropy(logits, target[:, i], ignore_index=pad_token_id)
+
+        return loss
