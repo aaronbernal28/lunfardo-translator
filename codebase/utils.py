@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import re
+import numpy as np
 
 def preprocess_text(text):
     """Preprocesa el texto para limpieza básica"""
@@ -19,12 +20,10 @@ def preprocess_text(text):
     text = ' '.join(text.split())
     return text
 
-
 def load_client():
     # Evito llamar al cliente varias veces
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     return client
-
 
 def genai_samples(samples: list[str], client: genai.Client):
     import time
@@ -42,10 +41,7 @@ def genai_samples(samples: list[str], client: genai.Client):
             try:
                 response_es_lf = client.models.generate_content(
                     model="gemini-2.5-flash-lite",
-                    contents='''
-{}:
-"{}"
-                    '''.format(query, _sample),
+                    contents=f'{query}:\n"{_sample}"',
                     config=types.GenerateContentConfig(
                         thinking_config=types.ThinkingConfig(thinking_budget=512)
                     )
@@ -61,7 +57,7 @@ def genai_samples(samples: list[str], client: genai.Client):
                 else:
                     print(f"\nAttempt {attempt + 1}/3: Gemini returned None for sample (length: {len(_sample)})")
                     if attempt < 2:  # Don't sleep on the last attempt
-                        time.sleep(1)  # Brief pause before retry
+                        time.sleep(1)
                         
             except Exception as e:
                 print(f"\nAttempt {attempt + 1}/3: Error occurred: {e}")
@@ -78,16 +74,37 @@ def genai_samples(samples: list[str], client: genai.Client):
         total_samples = len(samples)
         elapsed_time = (time.time() - t0) / 60
         print(f"Processed {total_processed}/{total_samples} samples (skipped: {skipped_count}). Time elapsed: {elapsed_time:.2f} minutes", end='\r')
-    
-    # Final summary
+
     elapsed_time = (time.time() - t0) / 60
     print(f"\nCompleted! Processed {len(responses)}/{len(samples)} samples (skipped: {skipped_count}). Total time: {elapsed_time:.2f} minutes")
     
     return processed_samples, responses
-
 
 def save_samples(oraciones_es, oraciones_es_lf, filename):
     with open(filename, "w", encoding="utf-8") as f:
         for oracion in zip(oraciones_es, oraciones_es_lf):
             f.write(oracion[0] + "\t" + oracion[1] + "\n")
     print(f"Samples saved to {filename}")
+
+
+def genai_samples_parallel(samples: list[str], client: genai.Client, num_workers=4):
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    # Dividir las muestras en lotes para cada trabajador
+    batches = np.array_split(samples, num_workers)
+    
+    results = []
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        future_to_batch = {executor.submit(genai_samples, batch.tolist(), client): batch for batch in batches}
+        
+        for future in as_completed(future_to_batch):
+            try:
+                processed_samples, responses = future.result()
+                results.extend(zip(processed_samples, responses))
+            except Exception as e:
+                print(f"Error processing batch: {e}")
+
+    # Desempaquetar resultados
+    processed_samples, responses = zip(*results) if results else ([], [])
+    
+    return list(processed_samples), list(responses)

@@ -13,6 +13,8 @@ class model1(nn.Module):
         '''
         super().__init__()
         self.name = name
+        self.pad_token = 0
+        self.sep_token = 102
         self.BERT = BertModel.from_pretrained("bert-base-multilingual-uncased").eval()
         self.vocab_size = self.BERT.config.vocab_size
         self.embedding_dim = self.BERT.config.hidden_size
@@ -20,7 +22,7 @@ class model1(nn.Module):
         self.linear2 = nn.Linear(self.vocab_size//2, self.vocab_size)
         self.tanh = nn.Tanh()
 
-    def forward(self, input):
+    def step(self, input):
         '''
         input: (batch_size, seq_length) -- token ids
         output: (batch_size, vocab_size) -- logits
@@ -28,28 +30,36 @@ class model1(nn.Module):
         with torch.inference_mode():
             bert_output = self.BERT(input).pooler_output # (batch_size, embedding_dim)
 
-        res = self.linear1(bert_output)
-        res = self.tanh(res)
-        res = self.linear2(res)
-        return res
+        output = self.linear1(bert_output)
+        output = self.tanh(output)
+        output = self.linear2(output)
+        return output
 
-    def loss(self, input, target):
+    def forward(self, input):
         # truncado estrategico
-        input_proportional_length = input.shape[1] / (input.shape[1] + target.shape[1])
-        new_input_length = int(512 * input_proportional_length)
+        new_input_length = int(min(256, input.shape[1]))
         
         input = input[:, :new_input_length]
-        target = target[:, :(512 - new_input_length)]
+        target_pred_length = 512 - new_input_length
+        batch_size = input.shape[0]
 
+        target_pred = torch.zeros((batch_size, target_pred_length)).to(input.device)
+        logits_pred = torch.zeros((batch_size, target_pred_length, self.vocab_size)).to(input.device)
+
+        for i in range(1, target_pred_length):
+            # deberian terminar en sep token y luego pad tokens.......x
+            input_ids = torch.cat((input, target_pred[:, :i]), dim=1)
+            logits_pred[:, i, :] = self.step(input_ids) # (batch_size, vocab_size)
+            target_pred[:, i] = torch.argmax(logits_pred[:, i], dim=1) # (batch_size)
+
+        return logits_pred, target_pred
+
+    def loss(self, input, target):
+        logits_pred, target_pred = self.forward(input)
         loss = torch.tensor(0, requires_grad=True).to(input.device)
 
-        sep_token_id = 102
-        pad_token_id = 0
-
-        for i in range(target.shape[1]):
-            # deberian terminar en sep token y luego pad tokens.......x
-            input_ids = torch.cat((input, target[:, :i]), dim=1)
-            logits = self.forward(input_ids)
-            loss += F.cross_entropy(logits, target[:, i], ignore_index=pad_token_id)
+        for i in range(1, min(target.shape[1], target_pred.shape[1])):
+            loss += F.cross_entropy(logits_pred[:, i], target[:, i], ignore_index=self.pad_token)
+            target_pred[:, i] = torch.argmax(logits_pred[:, i], dim=1)
 
         return loss
