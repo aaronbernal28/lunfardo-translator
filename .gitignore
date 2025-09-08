@@ -209,3 +209,11 @@ __marimo__/
 credentials.json
 data/es-ca.txt
 data/es-gl.txt
+codebase/noteboooks/notebook_10_secuencias-published.ipynb
+codebase/noteboooks/amazon-imdb_score-prediction2.ipynb
+.gitignore
+codebase/noteboooks/imdb_score_by_description.ipynb
+.gitignore
+data/es_MX-es_LF_small.txt
+data/es_MX-es_LF_small2.txt
+data/source.txt

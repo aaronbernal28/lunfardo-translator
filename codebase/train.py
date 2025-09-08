@@ -1,6 +1,5 @@
 import numpy as np
 import os
-# import tensorflow as tf
 import torch
 from codebase import utils as ut
 from torch import nn, optim
@@ -27,7 +26,7 @@ def train(model, train_loader, val_loader, epoch_max=100, lr=1e-3):
 
             optimizer.zero_grad()
 
-            loss, _ = model.loss(input, target)
+            loss = model.loss(input, target)
 
             loss.backward()
 
@@ -50,7 +49,7 @@ def train(model, train_loader, val_loader, epoch_max=100, lr=1e-3):
                 input = batch['input']
                 target = batch['target']
 
-                loss, _ = model.loss(input, target)
+                loss = model.loss(input, target)
                 val_loss += loss.item()
                 m += 1
         val_loss /= m

@@ -3,30 +3,41 @@ import torch.nn as nn
 import torch.nn.functional as F
 from codebase import utils as ut
 from transformers import BertModel
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 torch.cuda.empty_cache()
 
 class model2(nn.Module):
-    def __init__(self, name, device):
+    def __init__(self, name, d_model=512, nhead=8, num_encoder_layers=6, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1):
         '''
         modelo basado en BERT + transformer
         '''
         super().__init__()
         self.name = name
-        self.device = device
-        self.pad_token = torch.tensor(0)
-        self.sep_token = torch.tensor(102)
-        self.cls_token = torch.tensor(101)
+        self.pad_token = torch.tensor(0).to(device)
+        self.sep_token = torch.tensor(102).to(device)
+        self.cls_token = torch.tensor(101).to(device)
 
         # cargar embeddings de BERT
-        self.embeddings = BertModel.from_pretrained("bert-base-multilingual-uncased").eval().embeddings.word_embeddings.weight.detach()
+        self.embeddings = BertModel.from_pretrained("bert-base-multilingual-uncased").to(device).eval().embeddings.word_embeddings.weight.detach()
         torch.cuda.empty_cache()
 
         self.vocab_size = self.embeddings.shape[0]
         self.emb_dim = self.embeddings.shape[1]
+        self.d_model = d_model
 
-        self.transformer = nn.Transformer(d_model=self.emb_dim, batch_first=True)
-        self.linear = nn.Linear(self.emb_dim, self.vocab_size)
+        if self.d_model != self.emb_dim:
+            # proyectar embeddings a d_model
+            self.linear_in = nn.Linear(self.emb_dim, d_model)
+
+        self.transformer = nn.Transformer(d_model=self.d_model,
+                                          batch_first=True,
+                                          nhead=nhead,
+                                          num_encoder_layers=num_encoder_layers,
+                                          num_decoder_layers=num_decoder_layers,
+                                          dim_feedforward=dim_feedforward,
+                                          dropout=dropout)
+        self.linear = nn.Linear(self.d_model, self.vocab_size)
 
     def forward(self, input, target):
         '''
@@ -34,7 +45,7 @@ class model2(nn.Module):
         target: (batch_size, target_seq_length)
 
         input_emb: (batch_size, input_seq_length, emb_dim)
-        target_emb: (batch_size, target_seq_length, emb_dim)
+        target_emb: (batch_size, target_seq_length, d_model)
 
         scores: (batch_size, target_seq_length, vocab_size)
         '''
@@ -44,10 +55,14 @@ class model2(nn.Module):
         # target_mask evita que el transformer vea futuros tokens
         target_mask = nn.Transformer.generate_square_subsequent_mask(target_emb.size(1)).to(target_emb.device)
 
+        if self.d_model != self.emb_dim:
+            input_emb = self.linear_in(input_emb)
+            target_emb = self.linear_in(target_emb)
+            
         scores = self.transformer.forward(src=input_emb, tgt=target_emb,
                                           tgt_mask=target_mask,
                                           src_key_padding_mask=(input == self.pad_token),
-                                          tgt_key_padding_mask=(target == self.pad_token)) # (batch_size, target_seq_length, emb_dim)
+                                          tgt_key_padding_mask=(target == self.pad_token)) # (batch_size, target_seq_length, d_model)
         scores = self.linear(scores)
         return scores
     

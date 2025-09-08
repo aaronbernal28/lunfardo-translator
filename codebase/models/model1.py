@@ -7,7 +7,7 @@ from transformers import BertModel
 torch.cuda.empty_cache()
 
 class model1(nn.Module):
-    def __init__(self, name, embedding_dim=768, dropout=0.1):
+    def __init__(self, name):
         '''
         modelo naive basado en BERT + capas fully connected de referencia
         '''
