@@ -82,8 +82,8 @@ class dataset_token(Dataset):
     
     def __getitem__(self, idx):
         xs, ys = self.pairs[idx]
-        tokenized_xs = torch.tensor(tokenizer.encode(xs)).to(device)
-        tokenized_ys = torch.tensor(tokenizer.encode(ys)).to(device)
+        tokenized_xs = torch.tensor(tokenizer.encode(xs, truncation=True)).to(device)
+        tokenized_ys = torch.tensor(tokenizer.encode(ys, truncation=True)).to(device)
 
         return {
             'input': tokenized_xs,
