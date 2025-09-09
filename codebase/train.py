@@ -1,10 +1,17 @@
 import numpy as np
 import os
 import torch
-from codebase import utils as ut
-from torch import nn, optim
-from torch.nn import functional as F
 import time
+import matplotlib.pyplot as plt
+
+from torch import nn, optim
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import Dataset, DataLoader
+from transformers import BertTokenizer
+
+model_name = "bert-base-multilingual-uncased"
+tokenizer = BertTokenizer.from_pretrained(model_name)
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def train(model, train_loader, val_loader=None, epoch_max=100, lr=1e-3):
     train_losses = []
@@ -65,3 +72,42 @@ def train(model, train_loader, val_loader=None, epoch_max=100, lr=1e-3):
     end_time = time.time()
     print(f"Entrenamiento completado! Tiempo total: {(end_time - start_time)/60:.2f} minutos")
     return train_losses, val_losses
+
+class dataset_token(Dataset):
+    def __init__(self, x, y):
+        self.pairs = list(zip(x, y))
+
+    def __len__(self):
+        return len(self.pairs)
+    
+    def __getitem__(self, idx):
+        xs, ys = self.pairs[idx]
+        tokenized_xs = torch.tensor(tokenizer.encode(xs)).to(device)
+        tokenized_ys = torch.tensor(tokenizer.encode(ys)).to(device)
+
+        return {
+            'input': tokenized_xs,
+            'target': tokenized_ys,
+            'input_length': torch.tensor(tokenized_xs.shape[0]).to(device),
+            'target_length': torch.tensor(tokenized_ys.shape[0]).to(device)
+    }
+
+def custom_collate(batch):
+    inputs = [item['input'] for item in batch]
+    targets = [item['target'] for item in batch]
+    padded_inputs = pad_sequence(inputs, batch_first=True, padding_value=tokenizer.pad_token_id)  # (batch, max_len, 768)
+    padded_targets = pad_sequence(targets, batch_first=True, padding_value=tokenizer.pad_token_id)
+    return {'input': padded_inputs,
+            'target': padded_targets,
+            'input_length': torch.tensor([item['input_length'] for item in batch]),
+            'target_length': torch.tensor([item['target_length'] for item in batch])}
+
+def plot_losses(train_loss, val_loss):
+    plt.figure(figsize=(10, 5))
+    plt.plot(train_loss, label='Pérdida de Entrenamiento')
+    plt.plot(val_loss, label='Pérdida de Validación')
+    plt.xlabel('Épocas')
+    plt.ylabel('Pérdida')
+    plt.legend()
+    plt.grid(True)
+    plt.show()

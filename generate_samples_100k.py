@@ -22,8 +22,8 @@ _, dataset_sampled = train_test_split(dataset, test_size=100000, random_state=28
 client = load_client()
 
 oraciones_es = dataset_sampled['spanish'].tolist()
-oraciones_es = oraciones_es[:10]
-oraciones_es, oraciones_es_lf = genai_samples_parallel(oraciones_es, client, num_workers=10)
+oraciones_es = oraciones_es[20000:]
+oraciones_es, oraciones_es_lf = genai_samples_parallel(oraciones_es, client, num_workers=190)
 
 # guardamos en un archivo de texto
-save_samples(oraciones_es, oraciones_es_lf, "data/es-es_LF_100k.txt")
+save_samples(oraciones_es, oraciones_es_lf, "data/es-es_LF_100k.txt", overwrite=False)
