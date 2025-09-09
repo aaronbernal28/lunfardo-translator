@@ -31,7 +31,8 @@ def genai_samples(samples: list[str], client: genai.Client):
     responses = []
     processed_samples = []
     skipped_count = 0
-    query = os.getenv("QUERY")
+    query_in = os.getenv("QUERY_in")
+    query_out = os.getenv("QUERY_out")
     for _sample in samples:
         _sample = preprocess_text(_sample)
         success = False
@@ -41,8 +42,10 @@ def genai_samples(samples: list[str], client: genai.Client):
             try:
                 response_es_lf = client.models.generate_content(
                     model="gemini-2.5-flash-lite",
-                    contents=f'{query}:\n"{_sample}"',
+                    contents=f'{query_in}:\n"{_sample}"\n{query_out}',
                     config=types.GenerateContentConfig(
+                        temperature=0.75,
+                        seed=28,
                         thinking_config=types.ThinkingConfig(thinking_budget=512)
                     )
                 )

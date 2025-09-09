@@ -16,7 +16,8 @@ def obtener_listas_oraciones_es(dataset):
     return oraciones_es
 
 oraciones_es = obtener_listas_oraciones_es(dataset)
+oraciones_es = oraciones_es[:5]
 oraciones_es, oraciones_es_lf = genai_samples(oraciones_es, client)
 
 # guardamos en un archivo de texto
-save_samples(oraciones_es, oraciones_es_lf, "data/es_MX-es_LF_1000.txt")
+save_samples(oraciones_es, oraciones_es_lf, "data/test.txt")

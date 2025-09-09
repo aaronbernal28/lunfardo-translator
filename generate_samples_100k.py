@@ -4,7 +4,7 @@ from google import genai
 from sklearn.model_selection import train_test_split
 
 # Cargamos el dataset para el par en-es_MX 998 muestras
-dataset = pd.read_csv('../../data/es-gl.txt', sep='\t', header=None, on_bad_lines='skip')
+dataset = pd.read_csv('data/es-gl.txt', sep='\t', header=None, on_bad_lines='skip')
 dataset.columns = ['spanish', 'gl']
 
 # Filtrado del dataset original
@@ -23,7 +23,7 @@ client = load_client()
 
 oraciones_es = dataset_sampled['spanish'].tolist()
 oraciones_es = oraciones_es[:10]
-oraciones_es, oraciones_es_lf = genai_samples_parallel(oraciones_es, client, num_workers=4)
+oraciones_es, oraciones_es_lf = genai_samples_parallel(oraciones_es, client, num_workers=10)
 
 # guardamos en un archivo de texto
 save_samples(oraciones_es, oraciones_es_lf, "data/es-es_LF_100k.txt")
