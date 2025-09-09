@@ -61,8 +61,8 @@ class model2(nn.Module):
             
         scores = self.transformer.forward(src=input_emb, tgt=target_emb,
                                           tgt_mask=target_mask,
-                                          src_key_padding_mask=(input == self.pad_token),
-                                          tgt_key_padding_mask=(target == self.pad_token)) # (batch_size, target_seq_length, d_model)
+                                          src_key_padding_mask=(input == self.pad_token.item()).bool(),
+                                          tgt_key_padding_mask=(target == self.pad_token.item()).bool()) # (batch_size, target_seq_length, d_model)
         scores = self.linear(scores)
         return scores
     

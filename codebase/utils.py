@@ -80,8 +80,12 @@ def genai_samples(samples: list[str], client: genai.Client):
     
     return processed_samples, responses
 
-def save_samples(oraciones_es, oraciones_es_lf, filename):
-    with open(filename, "w", encoding="utf-8") as f:
+def save_samples(oraciones_es, oraciones_es_lf, filename, overwrite=True):
+    mode = 'a'
+    if overwrite:
+        mode = 'w'
+        
+    with open(filename, mode, encoding="utf-8") as f:
         for oracion in zip(oraciones_es, oraciones_es_lf):
             f.write(oracion[0] + "\t" + oracion[1] + "\n")
     print(f"Samples saved to {filename}")
