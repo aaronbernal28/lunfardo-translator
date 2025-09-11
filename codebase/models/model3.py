@@ -85,6 +85,7 @@ class model3(nn.Module):
         for _ in range(max_length - 1):  # -1 porque comenzamos con CLS
             scores = self.forward(input, target_pred)  # (1, target_seq_length, vocab_size)
             next_token = scores[:, -1, :].argmax(dim=-1, keepdim=True)  # (1, 1)
+            next_token = self.get_original_token(next_token)
             target_pred = torch.cat([target_pred, next_token], dim=1)
 
             if next_token.item() == self.sep_token.item():
@@ -105,6 +106,10 @@ class model3(nn.Module):
         return results
     
     def loss(self, input, target):
+        '''
+        input: (batch_size, input_seq_length)
+        target: (batch_size, target_seq_length)
+        '''
         scores = self.forward(input, target[:, :-1]) # no incluir el token final
 
         predictions = scores.reshape(-1, self.vocab_size) # (batch_size * pred_seq_length, vocab_size)
@@ -112,7 +117,7 @@ class model3(nn.Module):
         targets = target[:, 1:].reshape(-1) # (batch_size * target_seq_length,)
 
         # Cross-entropy loss
-        loss = F.cross_entropy(predictions, targets, ignore_index=self.pad_token.item())
+        loss = F.cross_entropy(predictions, self.get_limited_token(targets), ignore_index=self.pad_token.item())
         return loss
     
     def get_original_token(self, limited_tokens):
@@ -128,5 +133,11 @@ class model3(nn.Module):
         tokens: tensor() (batch_size, seq_len)
             0 <= token <= self.embeddings.shape[0] ~ 100k
         output: tensor() (batch_size, seq_len)
+        Ejemplo:
+            >>> vocab = torch.tensor([101, 102, 106, 112, 117, 119, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 136, 142, 143]) # falta el token PAD
+            >>> tokens = torch.tensor([[106, 102, 101], [117, 112, 101]])
+            >>> torch.searchsorted(vocab, tokens)
+            tensor([[2, 1, 0],
+                    [4, 3, 0]])
         '''
         return torch.searchsorted(self.vocab, tokens)
