@@ -13,7 +13,7 @@ model_name = "bert-base-multilingual-uncased"
 tokenizer = BertTokenizer.from_pretrained(model_name)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def train(model, train_loader, val_loader=None, epoch_max=100, lr=1e-3):
+def train(model, train_loader, val_loader=None, epoch_max=100, lr=1e-3, verbose_each = 5):
     train_losses = []
     val_losses = []
     optimizer = optim.AdamW(model.parameters(), lr=lr)
@@ -63,7 +63,7 @@ def train(model, train_loader, val_loader=None, epoch_max=100, lr=1e-3):
             val_loss /= m
             val_losses.append(val_loss)
 
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % verbose_each == 0:
             if val_loader is None:
                 print(f'Época {epoch+1}/{epoch_max}: Pérdida Entrenamiento: {train_loss:.4f}', end='\r')
             else:

@@ -33,8 +33,8 @@ class model3(nn.Module):
         self.emb_dim = self.embeddings.shape[1]
         self.d_model = d_model
 
+        # proyectar embeddings a d_model
         if self.d_model != self.emb_dim:
-            # proyectar embeddings a d_model
             self.linear_in = nn.Linear(self.emb_dim, d_model)
 
         self.transformer = nn.Transformer(d_model=self.d_model,
@@ -59,7 +59,7 @@ class model3(nn.Module):
         input_emb = self.embeddings[input]
         target_emb = self.embeddings[target]
 
-        # target_mask evita que el transformer vea futuros tokens
+        # target_mask evita que el transformer vea futuros tokens para la generacion del target
         target_mask = nn.Transformer.generate_square_subsequent_mask(target_emb.size(1)).to(target_emb.device)
 
         if self.d_model != self.emb_dim:
@@ -76,22 +76,45 @@ class model3(nn.Module):
     def generate(self, input, max_length=512):
         '''
         input: (input_seq_length,)
-        returns: (generated_seq_length,)
+        target_pred: (generated_seq_length,)
         '''
-        input = input.unsqueeze(0)  # (1, input_seq_length)
-        target_pred = self.cls_token.unsqueeze(0).unsqueeze(0)  # (1, 1)
+        input = input.unsqueeze(0) # (1, input_seq_length)
+        target_pred = self.cls_token.unsqueeze(0).unsqueeze(0) # (1, 1)
 
-        # generar hasta max_length o hasta sep token
-        for _ in range(max_length - 1):  # -1 porque comenzamos con CLS
-            scores = self.forward(input, target_pred)  # (1, target_seq_length, vocab_size)
-            next_token = scores[:, -1, :].argmax(dim=-1, keepdim=True)  # (1, 1)
+        # proyectar embeddings a d_model
+        input_emb = self.embeddings[input]
+        if self.d_model != self.emb_dim:
+            input_emb = self.linear_in(input_emb)
+
+        # esto para se mantiene constante
+        encoder_output = self.transformer.encoder(input_emb,
+                                                  src_key_padding_mask=(input == self.pad_token.item()).bool())
+
+        for _ in range(max_length - 1):
+            target_emb = self.embeddings[target_pred]
+
+            # proyectar embeddings a d_model
+            if self.d_model != self.emb_dim:
+                target_emb = self.linear_in(target_emb)
+
+            target_mask = nn.Transformer.generate_square_subsequent_mask(target_emb.size(1)).to(target_emb.device)
+
+            # esa el encoder_output calculado
+            decoder_output = self.transformer.decoder(
+                target_emb, encoder_output,
+                tgt_mask=target_mask,
+                tgt_key_padding_mask=(target_pred == self.pad_token.item()).bool()
+            ) # (batch_size, target_seq_length, d_model)
+
+            scores = self.linear(decoder_output) # (batch_size, target_seq_length, self.vocab_size)
+            next_token = scores[:, -1, :].argmax(dim=-1, keepdim=True)
             next_token = self.get_original_token(next_token)
-            target_pred = torch.cat([target_pred, next_token], dim=1)
+            target_pred = torch.cat([target_pred, next_token], dim=1) # dim(target_pred) += (0, 1)
 
             if next_token.item() == self.sep_token.item():
                 break
-            
-        return target_pred.squeeze(0) # (generated_seq_length,)
+
+        return target_pred.squeeze(0)
     
     def batch_generate(self, input_batch, max_length=512):
         """
@@ -110,14 +133,22 @@ class model3(nn.Module):
         input: (batch_size, input_seq_length)
         target: (batch_size, target_seq_length)
         '''
-        scores = self.forward(input, target[:, :-1]) # no incluir el token final
+        if target.dim() == 1:
+            target = target.unsqueeze(0)
+        if input.dim() == 1:
+            input = input.unsqueeze(0)
+
+        scores = self.forward(input, target[:, :-1]) # no incluir el token final para predecir la siguiente palabra
 
         predictions = scores.reshape(-1, self.vocab_size) # (batch_size * pred_seq_length, vocab_size)
 
         targets = target[:, 1:].reshape(-1) # (batch_size * target_seq_length,)
 
+        limited_targets = self.get_limited_token(targets)
+        limited_pad_idx = self.get_limited_token(self.pad_token.unsqueeze(0)).item()
+    
         # Cross-entropy loss
-        loss = F.cross_entropy(predictions, self.get_limited_token(targets), ignore_index=self.pad_token.item())
+        loss = F.cross_entropy(predictions, limited_targets, ignore_index=limited_pad_idx)
         return loss
     
     def get_original_token(self, limited_tokens):
