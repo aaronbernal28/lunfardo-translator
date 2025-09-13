@@ -60,7 +60,7 @@ class model3(nn.Module):
         target_emb = self.embeddings[target]
 
         # target_mask evita que el transformer vea futuros tokens para la generacion del target
-        target_mask = nn.Transformer.generate_square_subsequent_mask(target_emb.size(1)).to(target_emb.device)
+        target_mask = nn.Transformer.generate_square_subsequent_mask(target_emb.size(1)).to(target_emb.device, dtype=torch.bool)
 
         if self.d_model != self.emb_dim:
             input_emb = self.linear_in(input_emb)
@@ -78,43 +78,44 @@ class model3(nn.Module):
         input: (input_seq_length,)
         target_pred: (generated_seq_length,)
         '''
-        input = input.unsqueeze(0) # (1, input_seq_length)
-        target_pred = self.cls_token.unsqueeze(0).unsqueeze(0) # (1, 1)
-
-        # proyectar embeddings a d_model
-        input_emb = self.embeddings[input]
-        if self.d_model != self.emb_dim:
-            input_emb = self.linear_in(input_emb)
-
-        # esto para se mantiene constante
-        encoder_output = self.transformer.encoder(input_emb,
-                                                  src_key_padding_mask=(input == self.pad_token.item()).bool())
-
-        for _ in range(max_length - 1):
-            target_emb = self.embeddings[target_pred]
-
+        with torch.no_grad():
+            input = input.unsqueeze(0) # (1, input_seq_length)
+            target_pred = self.cls_token.unsqueeze(0).unsqueeze(0) # (1, 1)
+    
             # proyectar embeddings a d_model
+            input_emb = self.embeddings[input]
             if self.d_model != self.emb_dim:
-                target_emb = self.linear_in(target_emb)
-
-            target_mask = nn.Transformer.generate_square_subsequent_mask(target_emb.size(1)).to(target_emb.device)
-
-            # esa el encoder_output calculado
-            decoder_output = self.transformer.decoder(
-                target_emb, encoder_output,
-                tgt_mask=target_mask,
-                tgt_key_padding_mask=(target_pred == self.pad_token.item()).bool()
-            ) # (batch_size, target_seq_length, d_model)
-
-            scores = self.linear(decoder_output) # (batch_size, target_seq_length, self.vocab_size)
-            next_token = scores[:, -1, :].argmax(dim=-1, keepdim=True)
-            next_token = self.get_original_token(next_token)
-            target_pred = torch.cat([target_pred, next_token], dim=1) # dim(target_pred) += (0, 1)
-
-            if next_token.item() == self.sep_token.item():
-                break
-
-        return target_pred.squeeze(0)
+                input_emb = self.linear_in(input_emb)
+    
+            # esto para se mantiene constante
+            encoder_output = self.transformer.encoder(input_emb,
+                                                      src_key_padding_mask=(input == self.pad_token.item()).bool())
+    
+            for _ in range(max_length - 1):
+                target_emb = self.embeddings[target_pred]
+    
+                # proyectar embeddings a d_model
+                if self.d_model != self.emb_dim:
+                    target_emb = self.linear_in(target_emb)
+    
+                target_mask = nn.Transformer.generate_square_subsequent_mask(target_emb.size(1)).to(target_emb.device, dtype=torch.bool)
+    
+                # esa el encoder_output calculado
+                decoder_output = self.transformer.decoder(
+                    target_emb, encoder_output,
+                    tgt_mask=target_mask,
+                    tgt_key_padding_mask=(target_pred == self.pad_token.item()).bool()
+                ) # (batch_size, target_seq_length, d_model)
+    
+                scores = self.linear(decoder_output) # (batch_size, target_seq_length, self.vocab_size)
+                next_token = scores[:, -1, :].argmax(dim=-1, keepdim=True)
+                next_token = self.get_original_token(next_token)
+                target_pred = torch.cat([target_pred, next_token], dim=1) # dim(target_pred) += (0, 1)
+    
+                if next_token.item() == self.sep_token.item():
+                    break
+                
+            return target_pred.squeeze(0)
     
     def batch_generate(self, input_batch, max_length=512):
         """
@@ -171,4 +172,6 @@ class model3(nn.Module):
             tensor([[2, 1, 0],
                     [4, 3, 0]])
         '''
-        return torch.searchsorted(self.vocab, tokens)
+        res = torch.searchsorted(self.vocab, tokens)
+        res = torch.clamp(res, 0, self.vocab_size - 1) # solucion provisoria
+        return res
