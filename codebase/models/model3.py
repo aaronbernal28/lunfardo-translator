@@ -1,8 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from codebase import utils as ut
+#from codebase import utils as ut
 from transformers import BertModel
+from torcheval.metrics.text import Perplexity
+from torch.utils.data import DataLoader
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 torch.cuda.empty_cache()
@@ -140,9 +143,7 @@ class model3(nn.Module):
             input = input.unsqueeze(0)
 
         scores = self.forward(input, target[:, :-1]) # no incluir el token final para predecir la siguiente palabra
-
         predictions = scores.reshape(-1, self.vocab_size) # (batch_size * pred_seq_length, vocab_size)
-
         targets = target[:, 1:].reshape(-1) # (batch_size * target_seq_length,)
 
         limited_targets = self.get_limited_token(targets)
@@ -174,4 +175,28 @@ class model3(nn.Module):
         '''
         res = torch.searchsorted(self.vocab, tokens)
         res = torch.clamp(res, 0, self.vocab_size - 1) # solucion provisoria
+        return res
+    
+    def perplexity(self, val_loader: DataLoader, metric: Perplexity):
+        '''
+        Ejecutar en modo evaluacion (with torch.no_grad())
+        '''
+        for _, batch in enumerate(val_loader):
+            input = batch['input']
+            target = batch['target']
+
+            if target.dim() == 1:
+                target = target.unsqueeze(0)
+            if input.dim() == 1:
+                input = input.unsqueeze(0)
+
+            scores = self.forward(input, target[:, :-1]) # no incluir el token final para predecir la siguiente palabra
+            predictions = scores.reshape(-1, self.vocab_size) # (batch_size * pred_seq_length, vocab_size)
+            targets = target[:, 1:].reshape(-1) # (batch_size * target_seq_length,)
+            limited_targets = self.get_limited_token(targets)
+        
+            metric.update(predictions, limited_targets)
+
+        res = metric.compute()
+        metric.reset()
         return res
