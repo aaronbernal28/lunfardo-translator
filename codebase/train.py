@@ -231,7 +231,7 @@ def train_steps_perplexity(model, train_loader, val_loader, max_steps=1000, lr=1
     perplexities_xaxis = []
     perplexities = []
     optimizer = optim.AdamW(model.parameters(), lr=lr)
-    metric = Perplexity(ignore_index=model.get_limited_token(model.pad_token.unsqueeze(0)).item())
+    metric = Perplexity(ignore_index=model.get_limited_token(model.pad_token.unsqueeze(0)).item()).to(device)
     start_time = time.time()
     
     train_iterator = iter(train_loader)
@@ -241,7 +241,7 @@ def train_steps_perplexity(model, train_loader, val_loader, max_steps=1000, lr=1
     fig, ax = plt.subplots()
     curve_perplexity = None
 
-    while step < max_steps:
+    while step < max_steps+1:
         model.train()
         
         try:
@@ -269,12 +269,11 @@ def train_steps_perplexity(model, train_loader, val_loader, max_steps=1000, lr=1
                 perplexities_xaxis.append(step)
 
             if curve_perplexity is None:
-                curve_perplexity, = ax.plot(perplexities_xaxis, perplexities)
+                curve_perplexity, = ax.plot(perplexities_xaxis, perplexities, "o-")
                 ax.set_xlabel('Steps')
                 ax.set_ylabel('Perplexity')
                 ax.set_xlim((0, max_steps))
                 ax.grid(True)
-                ax.legend()
             else:
                 curve_perplexity.set_xdata(perplexities_xaxis)
                 curve_perplexity.set_ydata(perplexities)
@@ -290,7 +289,9 @@ def train_steps_perplexity(model, train_loader, val_loader, max_steps=1000, lr=1
 
     torch.cuda.empty_cache()
     end_time = time.time()
-    print(f"Entrenamiento completado! Tiempo total: {(end_time - start_time)/60:.2f} minutos")
+
+    box_text = f'Perplexity final: {perplexities[-1]:.2f}\nExecution time: {(end_time - start_time)/60:.2f} minutos'
+    ax.text(0.7, 0.9, box_text, transform=ax.transAxes)
     
     plt.ioff()
     plt.savefig(f'images/{model.name}_perplexity.png')
@@ -300,7 +301,7 @@ def train_steps_perplexity(model, train_loader, val_loader, max_steps=1000, lr=1
 
 def train(model, train_loader, val_loader=None, max_steps=1000, lr=1e-3, verbose_each=50, perplexity=False, plot=False):
     if perplexity:
-        out1, out2 = train_steps_perplexity(model, train_loader, val_loader, max_steps=1000, lr=1e-3, verbose_each=50)
+        out1, out2 = train_steps_perplexity(model, train_loader, val_loader, max_steps=max_steps, lr=lr, verbose_each=verbose_each)
     elif plot:
         out1, out2 = train_steps_plot(model, train_loader, val_loader, max_steps=max_steps, lr=lr, verbose_each=verbose_each)
     else:

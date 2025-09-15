@@ -173,7 +173,7 @@ class model3(nn.Module):
             tensor([[2, 1, 0],
                     [4, 3, 0]])
         '''
-        res = torch.searchsorted(self.vocab, tokens)
+        res = torch.searchsorted(self.vocab, tokens.contiguous())
         res = torch.clamp(res, 0, self.vocab_size - 1) # solucion provisoria
         return res
     
@@ -191,11 +191,10 @@ class model3(nn.Module):
                 input = input.unsqueeze(0)
 
             scores = self.forward(input, target[:, :-1]) # no incluir el token final para predecir la siguiente palabra
-            predictions = scores.reshape(-1, self.vocab_size) # (batch_size * pred_seq_length, vocab_size)
-            targets = target[:, 1:].reshape(-1) # (batch_size * target_seq_length,)
+            targets = target[:, 1:]
             limited_targets = self.get_limited_token(targets)
-        
-            metric.update(predictions, limited_targets)
+
+            metric.update(scores, limited_targets)
 
         res = metric.compute()
         metric.reset()
