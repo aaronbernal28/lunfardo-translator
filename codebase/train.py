@@ -59,7 +59,7 @@ def train_steps(model, train_loader, val_loader=None, max_steps=1000, lr=1e-3, v
     """
     train_losses = []
     val_losses = []
-    optimizer = optim.AdamW(model.parameters(), lr=lr)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
     print("Iniciando entrenamiento...")
     print("-" * 50)

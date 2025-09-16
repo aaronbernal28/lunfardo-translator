@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from codebase.models.model3 import model3
+from codebase.models.model3v2 import model3pro
 from codebase.train import dataset_token, custom_collate, train
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -12,7 +13,7 @@ print(f"Usando dispositivo: {device}")
 torch.cuda.set_per_process_memory_fraction(0.9)
 PER_DEVICE_BATCH = 16 # batch size en memoria GPU
 
-MODEL = model3
+MODEL = model3pro
 BATCH_SIZE = 16 # efectivo batch size
 MAX_STEPS = 10000
 LR = 1e-3

@@ -115,3 +115,29 @@ def genai_samples_parallel(samples: list[str], client: genai.Client, num_workers
     processed_samples, responses = zip(*results) if results else ([], [])
     
     return list(processed_samples), list(responses)
+
+# Al parecer Transformer no tiene positional encoding por defecto :(
+import math
+import torch
+from torch import nn, Tensor
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1).float()  # (max_len, 1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, d_model)  # (max_len, d_model)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)  # (1, max_len, d_model) - Add batch dimension here
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[batch_size, seq_len, embedding_dim]``
+        """
+        x = x + self.pe[:, :x.size(1)]
+        return self.dropout(x)
