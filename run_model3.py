@@ -14,14 +14,14 @@ torch.cuda.set_per_process_memory_fraction(0.9)
 PER_DEVICE_BATCH = 4 # batch size en memoria GPU
 
 MODEL = model3pro
-BATCH_SIZE = 16 # efectivo batch size
-MAX_STEPS = 200
-LR = 1e-4
-D_MODEL = 768
+BATCH_SIZE = 64 # efectivo batch size
+MAX_STEPS = 100
+LR = 1e-3
+D_MODEL = 512
 N_HEAD = 4
 NUM_ENCODER_LAYERS = 6
 NUM_DECODER_LAYERS = 6
-DIM_FEEDFORWARD = 1024
+DIM_FEEDFORWARD = 1024*2
 NAME = f'{MODEL.__name__}_D{D_MODEL}_H{N_HEAD}_E{NUM_ENCODER_LAYERS}_D{NUM_DECODER_LAYERS}_F{DIM_FEEDFORWARD}_BS{BATCH_SIZE}_MS{MAX_STEPS}_LR{LR}'
 
 data = pd.read_csv('data/es-es_LF_100k.txt', sep='\t', header=None, on_bad_lines='skip')
