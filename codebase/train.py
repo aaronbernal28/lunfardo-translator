@@ -43,20 +43,27 @@ def custom_collate(batch):
             'input_length': torch.tensor([item['input_length'] for item in batch]),
             'target_length': torch.tensor([item['target_length'] for item in batch])}
 
-def plot_losses(train_loss, val_loss, xlabel = 'Épocas'):
+def plot_losses(train_loss, val_loss, xlabel = 'Steps', model_name=None, execution_time_min=None):
     plt.figure(figsize=(10, 5))
-    plt.plot(train_loss, label='Pérdida de Entrenamiento')
-    plt.plot(val_loss, label='Pérdida de Validación')
+    plt.plot(train_loss, label='Train')
+    plt.plot(val_loss, label='Validation')
     plt.xlabel(xlabel)
-    plt.ylabel('Pérdida')
+    plt.ylabel('Loss')
+    box_text = f'Final val loss: {val_loss[-1]:.2f}\nExecution time: {execution_time_min:.2f} minutos'
+    plt.text(0.7, 0.9, box_text, transform=plt.gca().transAxes)
     plt.legend()
     plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f'images/{model_name}_perplexity.png', dpi=300, bbox_inches='tight')
     plt.show()
 
-def train_steps(model, train_loader, val_loader=None, max_steps=1000, lr=1e-3, verbose_each=50):
+def train_steps(model, train_loader, val_loader=None, max_steps=1000, lr=1e-3, verbose_each=50, batch_size=32, per_device_batch=16):
     """
     Basado en step - printea cada verbose_each steps
     """
+    assert batch_size >= per_device_batch and batch_size % per_device_batch == 0, f"requiere batch_size >= {per_device_batch} y divisible por {per_device_batch}"
+    accumulation_steps = batch_size // per_device_batch
+
     train_losses = []
     val_losses = []
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -72,27 +79,32 @@ def train_steps(model, train_loader, val_loader=None, max_steps=1000, lr=1e-3, v
     current_val_loss = 0
     while step < max_steps:
         model.train()
+        accumulated_loss = 0
         
-        try:
-            batch = next(train_iterator)
-        except StopIteration:
-            # reinicia la iteracion por los batches
-            train_iterator = iter(train_loader)
-            batch = next(train_iterator)
-        
-        input = batch['input']
-        target = batch['target']
+        # Gradient accumulation loop
+        for acc_step in range(accumulation_steps):
+            try:
+                batch = next(train_iterator)
+            except StopIteration:
+                # reinicia la iteracion por los batches
+                train_iterator = iter(train_loader)
+                batch = next(train_iterator)
+            
+            input = batch['input']
+            target = batch['target']
 
-        loss = model.loss(input, target)
-        loss.backward()
+            loss = model.loss(input, target)
+            # Scale loss by accumulation steps
+            loss.backward()
+            accumulated_loss += loss.item()
+
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         optimizer.zero_grad()
 
         step += 1
-        
-        current_train_loss = loss.item()
-        train_losses.append(current_train_loss)
+
+        train_losses.append(accumulated_loss / accumulation_steps)
         
         # Validacion
         if val_loader is not None:
@@ -114,26 +126,27 @@ def train_steps(model, train_loader, val_loader=None, max_steps=1000, lr=1e-3, v
         # Progreso cada verbose_each
         if step % verbose_each == 0:
             if val_loader is not None:
-                print(f'Paso {step}/{max_steps}: Pérdida Entrenamiento: {current_train_loss:.4f} | Pérdida Validación: {current_val_loss:.4f}', end='\r')
+                print(f'Paso {step}/{max_steps}: Pérdida Entrenamiento: {train_losses[-1]:.4f} | Pérdida Validación: {current_val_loss:.4f}', end='\r')
             else:
-                print(f'Paso {step}/{max_steps}: Pérdida Entrenamiento: {current_train_loss:.4f}', end='\r')
+                print(f'Paso {step}/{max_steps}: Pérdida Entrenamiento: {train_losses[-1]:.4f}', end='\r')
     
     torch.cuda.empty_cache()
     end_time = time.time()
+    print('.')
     print(f"Entrenamiento completado! Tiempo total: {(end_time - start_time)/60:.2f} minutos")
-    
+    plot_losses(train_losses, val_losses, xlabel='Steps', model_name=model.name, execution_time_min=(end_time - start_time)/60)
     return train_losses, val_losses
 
-def train_steps_perplexity(model, train_loader, val_loader, max_steps=1000, lr=1e-3, verbose_each=50, batch_size=32):
+def train_steps_perplexity(model, train_loader, val_loader, max_steps=1000, lr=1e-3, verbose_each=50, batch_size=32, per_device_batch=16):
     """
     Basado en step - plot interactivo cada verbose_each steps
     Implementa un gradient accumulation
     """
     if val_loader is None:
         return False
-    
-    assert batch_size >= 16 and batch_size % 16 == 0, "requiere batch_size >= 16 y divisible por 16"
-    accumulation_steps = batch_size // 16
+
+    assert batch_size >= per_device_batch and batch_size % per_device_batch == 0, f"requiere batch_size >= {per_device_batch} y divisible por {per_device_batch}"
+    accumulation_steps = batch_size // per_device_batch
 
     perplexities_xaxis = []
     perplexities = []
@@ -215,16 +228,16 @@ def train_steps_perplexity(model, train_loader, val_loader, max_steps=1000, lr=1
 
     return perplexities_xaxis, perplexities
 
-def train_steps_perplexity_static(model, train_loader, val_loader, max_steps=1000, lr=1e-3, verbose_each=50, batch_size=32):
+def train_steps_perplexity_static(model, train_loader, val_loader, max_steps=1000, lr=1e-3, verbose_each=50, batch_size=32, per_device_batch=16):
     """
     Basado en step - genera plot al final del entrenamiento
     Implementa un gradient accumulation
     """
     if val_loader is None:
         return False
-    
-    assert batch_size >= 16 and batch_size % 16 == 0, "requiere batch_size >= 16 y divisible por 16"
-    accumulation_steps = batch_size // 16
+
+    assert batch_size >= per_device_batch and batch_size % per_device_batch == 0, f"requiere batch_size >= {per_device_batch} y divisible por {per_device_batch}"
+    accumulation_steps = batch_size // per_device_batch
 
     perplexities_xaxis = []
     perplexities = []
@@ -294,13 +307,13 @@ def train_steps_perplexity_static(model, train_loader, val_loader, max_steps=100
     print(f"\nEntrenamiento completado! Tiempo total: {(end_time - start_time)/60:.2f} minutos")
     return perplexities_xaxis, perplexities
 
-def train(model, train_loader, val_loader=None, batch_size=16, max_steps=1000, lr=1e-3, verbose_each=50, perplexity=True, interactive_plot=False):
+def train(model, train_loader, val_loader=None, batch_size=16, max_steps=1000, lr=1e-3, verbose_each=50, perplexity=True, interactive_plot=False, per_device_batch=16):
     if perplexity:
         if interactive_plot:
-            out1, out2 = train_steps_perplexity(model, train_loader, val_loader, max_steps=max_steps, lr=lr, verbose_each=verbose_each, batch_size=batch_size)
+            out1, out2 = train_steps_perplexity(model, train_loader, val_loader, max_steps=max_steps, lr=lr, verbose_each=verbose_each, batch_size=batch_size, per_device_batch=per_device_batch)
         else:
-            out1, out2 = train_steps_perplexity_static(model, train_loader, val_loader, max_steps=max_steps, lr=lr, verbose_each=verbose_each, batch_size=batch_size)
+            out1, out2 = train_steps_perplexity_static(model, train_loader, val_loader, max_steps=max_steps, lr=lr, verbose_each=verbose_each, batch_size=batch_size, per_device_batch=per_device_batch)
     else:
-        out1, out2 = train_steps(model, train_loader, val_loader, max_steps=max_steps, lr=lr, verbose_each=verbose_each)
+        out1, out2 = train_steps(model, train_loader, val_loader, max_steps=max_steps, lr=lr, verbose_each=verbose_each, per_device_batch=per_device_batch)
     torch.save(model.state_dict(), f'checkpoints/{model.name}.pth')
     return out1, out2

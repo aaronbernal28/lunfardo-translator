@@ -11,16 +11,16 @@ from codebase.train import dataset_token, custom_collate, train
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Usando dispositivo: {device}")
 torch.cuda.set_per_process_memory_fraction(0.9)
-PER_DEVICE_BATCH = 16 # batch size en memoria GPU
+PER_DEVICE_BATCH = 4 # batch size en memoria GPU
 
 MODEL = model3pro
 BATCH_SIZE = 16 # efectivo batch size
-MAX_STEPS = 10000
-LR = 1e-3
-D_MODEL = 512//2
+MAX_STEPS = 200
+LR = 1e-4
+D_MODEL = 768
 N_HEAD = 4
-NUM_ENCODER_LAYERS = 3
-NUM_DECODER_LAYERS = 3
+NUM_ENCODER_LAYERS = 6
+NUM_DECODER_LAYERS = 6
 DIM_FEEDFORWARD = 1024
 NAME = f'{MODEL.__name__}_D{D_MODEL}_H{N_HEAD}_E{NUM_ENCODER_LAYERS}_D{NUM_DECODER_LAYERS}_F{DIM_FEEDFORWARD}_BS{BATCH_SIZE}_MS{MAX_STEPS}_LR{LR}'
 
@@ -51,4 +51,10 @@ print(f"Modelo creado con {sum(p.numel() for p in model.parameters())} parámetr
 train_dataloader = DataLoader(train_dataset, batch_size=PER_DEVICE_BATCH, collate_fn=custom_collate)
 val_dataloader = DataLoader(val_dataset, batch_size=PER_DEVICE_BATCH, collate_fn=custom_collate)
 
-_, _ = train(model, train_dataloader, val_dataloader, batch_size = BATCH_SIZE, max_steps=MAX_STEPS, lr=LR, verbose_each=MAX_STEPS//6, perplexity=True, interactive_plot=False)
+_, _ = train(model, train_dataloader, val_dataloader, 
+             batch_size = BATCH_SIZE, 
+             max_steps=MAX_STEPS, 
+             lr=LR, 
+             verbose_each=5, 
+             perplexity=False, 
+             per_device_batch=PER_DEVICE_BATCH)
