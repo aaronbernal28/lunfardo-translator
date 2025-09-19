@@ -40,13 +40,13 @@ def custom_collate(batch):
     padded_targets = pad_sequence(targets, batch_first=True, padding_value=tokenizer.pad_token_id)
     return {'input': padded_inputs,
             'target': padded_targets,
-            'input_length': torch.tensor([item['input_length'] for item in batch]),
-            'target_length': torch.tensor([item['target_length'] for item in batch])}
+            'input_length': torch.tensor([item['input_length'] for item in batch]).to(device),
+            'target_length': torch.tensor([item['target_length'] for item in batch]).to(device)}
 
 def plot_losses(train_loss, val_loss, xlabel = 'Steps', model_name=None, execution_time_min=None):
     plt.figure(figsize=(10, 5))
-    plt.plot(train_loss, label='Train')
-    plt.plot(val_loss, label='Validation')
+    plt.plot(train_loss, label='Train', alpha=0.6)
+    plt.plot(val_loss, label='Validation', alpha=0.6)
     plt.xlabel(xlabel)
     plt.ylabel('Loss')
     box_text = f'Final val loss: {val_loss[-1]:.2f}\nExecution time: {execution_time_min:.2f} minutos'
@@ -54,7 +54,7 @@ def plot_losses(train_loss, val_loss, xlabel = 'Steps', model_name=None, executi
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f'images/{model_name}_perplexity.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'images/{model_name}_loss.png', dpi=300, bbox_inches='tight')
     plt.show()
 
 def train_steps(model, train_loader, val_loader=None, max_steps=1000, lr=1e-3, verbose_each=50, batch_size=32, per_device_batch=16):

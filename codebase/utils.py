@@ -8,16 +8,16 @@ load_dotenv()
 import re
 import numpy as np
 
-def preprocess_text(text):
+def preprocess_text(text, max_length_palabras=512*4):
     """Preprocesa el texto para limpieza básica"""
     # Limpiar pero mantener puntuación básica
     text = text.strip()
     # Convertir a minúsculas
-    text = text.lower()
+    #text = text.lower()
     # Remover puntuación excesiva pero mantener puntos y comas
     text = re.sub(r'[^\w\sáéíóúüñ.,!¡?¿\']', '', text)
-    # Remover espacios extra
-    text = ' '.join(text.split())
+    # Remover espacios extra y truncar
+    text = ' '.join(text.split()[:max_length_palabras])
     return text
 
 def load_client():
@@ -45,7 +45,7 @@ def genai_samples(samples: list[str], client: genai.Client):
                     contents=f'{query_in}:\n"{_sample}"\n{query_out}',
                     config=types.GenerateContentConfig(
                         temperature=0.75,
-                        seed=28,
+                        seed=28 + attempt, # Cambiar la semilla en cada intento de forma controlada
                         thinking_config=types.ThinkingConfig(thinking_budget=512)
                     )
                 )
@@ -141,3 +141,16 @@ class PositionalEncoding(nn.Module):
         """
         x = x + self.pe[:, :x.size(1)]
         return self.dropout(x)
+    
+# Example usage:
+
+if __name__ == "__main__":
+    sample_text = '''
+    ¡Hola! ¿Cómo estás? Esto es una prueba de preprocesamiento de texto. 
+    Vamos a limpiar este texto, pero mantener la puntuación básica, como comas y puntos. 
+    Además, eliminaremos cualquier carácter extraño como @, #, $, %, ^, &, *, (, ), etc. 
+    También NO convertiremos todo a minúsculas y eliminaremos espacios extra. ¡Vamos a ver cómo funciona esto!
+    $$ %%% ### @@@ !!! ??? ... --- *** &&& ^^^ 1234567890
+    '''
+    print("Original:", sample_text)
+    print("Preprocessed:", preprocess_text(sample_text, max_length_palabras=50))

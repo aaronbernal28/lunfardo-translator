@@ -17,7 +17,8 @@ class model3pro(nn.Module):
                  num_encoder_layers=6, 
                  num_decoder_layers=6, 
                  dim_feedforward=2048, 
-                 dropout=0.1):
+                 dropout=0.1,
+                 dtype=torch.float32):
         '''
         modelo basado en BERT + transformer + filtered vocabulary
         '''
@@ -28,9 +29,9 @@ class model3pro(nn.Module):
         self.cls_token = torch.tensor(101).to(device)
 
         # cargar embeddings de BERT
-        self.embeddings = BertModel.from_pretrained("bert-base-multilingual-uncased").to(device).eval().embeddings.word_embeddings.weight.detach()
+        self.embeddings = BertModel.from_pretrained("bert-base-multilingual-uncased").to(device, dtype=dtype).eval().embeddings.word_embeddings.weight.detach()
         torch.cuda.empty_cache()
-        self.pos_enc = ut.PositionalEncoding(d_model, dropout, 512).to(device).eval()
+        self.pos_enc = ut.PositionalEncoding(d_model, dropout, 512).to(device, dtype=dtype).eval()
         self.vocab = torch.tensor(filtered_vocab).to(device)
 
         self.vocab_size = self.vocab.shape[0]
@@ -58,7 +59,9 @@ class model3pro(nn.Module):
         output: (batch_size, target_seq_length, vocab_size)
         '''
         encoder_output = self.forward_encoder(input)
+        #print('encoder_output:', encoder_output)
         output = self.forward_decoder(target, encoder_output)
+        #print('output:', output)
         return output
 
     def forward_encoder(self, input):
@@ -80,7 +83,7 @@ class model3pro(nn.Module):
 
         target_emb = self.pos_enc(target_emb)
 
-        tgt_mask = self.transformer.generate_square_subsequent_mask(target_emb.size(1)).to(device)
+        tgt_mask = self.transformer.generate_square_subsequent_mask(target_emb.size(1)).to(device, dtype=target_emb.dtype)
         output = self.transformer.decoder.forward(target_emb, encoder_output,
                                                   tgt_is_causal=True,
                                                   tgt_mask=tgt_mask) # (batch_size, target_seq_length, d_model)

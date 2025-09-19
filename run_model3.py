@@ -14,14 +14,14 @@ torch.cuda.set_per_process_memory_fraction(0.9)
 PER_DEVICE_BATCH = 4 # batch size en memoria GPU
 
 MODEL = model3pro
-BATCH_SIZE = 64 # efectivo batch size
-MAX_STEPS = 100
-LR = 1e-3
+BATCH_SIZE = 128 # efectivo batch size
+MAX_STEPS = 1000
+LR = 1e-4
 D_MODEL = 512
 N_HEAD = 4
-NUM_ENCODER_LAYERS = 6
-NUM_DECODER_LAYERS = 6
-DIM_FEEDFORWARD = 1024*2
+NUM_ENCODER_LAYERS = 4
+NUM_DECODER_LAYERS = 4
+DIM_FEEDFORWARD = 1024
 NAME = f'{MODEL.__name__}_D{D_MODEL}_H{N_HEAD}_E{NUM_ENCODER_LAYERS}_D{NUM_DECODER_LAYERS}_F{DIM_FEEDFORWARD}_BS{BATCH_SIZE}_MS{MAX_STEPS}_LR{LR}'
 
 data = pd.read_csv('data/es-es_LF_100k.txt', sep='\t', header=None, on_bad_lines='skip')
@@ -44,7 +44,7 @@ model = MODEL(
     num_encoder_layers=NUM_ENCODER_LAYERS,
     num_decoder_layers=NUM_DECODER_LAYERS,
     dim_feedforward=DIM_FEEDFORWARD
-).to(device)
+).to(device, dtype=torch.float32)
 
 print(f"Modelo creado con {sum(p.numel() for p in model.parameters())} parámetros")
 
@@ -55,6 +55,6 @@ _, _ = train(model, train_dataloader, val_dataloader,
              batch_size = BATCH_SIZE, 
              max_steps=MAX_STEPS, 
              lr=LR, 
-             verbose_each=5, 
+             verbose_each=10, 
              perplexity=False, 
              per_device_batch=PER_DEVICE_BATCH)
